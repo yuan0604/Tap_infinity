@@ -1,0 +1,105 @@
+---
+title: "Homework 3"
+author: ''
+date: "2024-09-27"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Read the data in the chunk below. The data come from of a study that investigated the flood tolerance of three different clover species.  
+The data can be interpreted as arising from an experiment with a 5 $\times$ 2 factorial treatment structure in a completely randomized design with 24 repetitions. The experimental units were pots in the greenhouse. The researchers cultivated the pots under two growing conditions: one was normally irrigated (control treatment), and one was left 12 days under flooded conditions. After the flooding, the researchers measured the aboveground biomass (in grams). 
+The objective of the study is to find out if the flooding treatment affects the plant biomass, and if this effect is different for different species.    
+
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(latex2exp)
+```
+
+```{r }
+url <- "https://raw.githubusercontent.com/jlacasa/stat705_fall2024/main/classes/data/lotus_hw3.csv"
+dd <- read.csv(url)
+```
+
+```{r}
+dd %>% 
+  ggplot(aes(species, agb_g))+
+  geom_boxplot(aes(fill = trt))+
+  scale_fill_manual(values = c("#43AA8B", "#DB504A"))+
+  labs(x = "Species", 
+       y = "Aboveground biomass (g)", 
+       fill = "Species")+
+  theme_classic()+
+  theme(aspect.ratio = 1)
+```
+
+
+### a. Propose a statistical model (using mathematical notation) to describe the relationship between aboveground biomass, legume species and treatment. Fit that model to the data.  
+
+$$y_{ijk} = \mu + \alpha_i + \beta_j + (\alpha\beta)_{ij} + \epsilon_{ijk}$$
+$$\epsilon \sim N(0, \sigma^2)$$
+$y_{ijk}$is the aboveground biomass for the k-th observation of species i and treatment j.
+$\mu$is the overall mean of above ground biomass.
+$\alpha_i$is the effect of species i.
+$\beta_j$is the effect of treatment j(control vs. treated).
+$(\alpha\beta)_{ij}$is the interaction effect between species i and treatment j.
+
+```{r}
+m1 <- lm(agb_g ~ species*trt, data = dd)
+anova(m1)
+```
+
+### b. Mention the assumptions in your model and check them. If you believe one of the assuptions is badly wrong and should be changed, name a possible alternative. (Note: you only have to state if you think they are approximately appropriate or not, and name a possible alternative. You do not need to **do it**!) 
+```{r}
+summary(m1)
+```
+```{r}
+dd$epsilon.hat <- residuals(m1)
+dd$y.hat <- m1$fitted.values
+
+dd %>% 
+  ggplot(aes(y.hat, epsilon.hat))+
+  geom_hline(yintercept = 0, linetype =2)+
+  geom_point()+
+  labs(x = TeX("$\\hat{y}_i$"), 
+       y = TeX("$\\hat{\\epsilon}_i$"))+
+  theme_classic()+
+  theme(aspect.ratio = 1)
+```
+Linearity Assumption is appropriate. The residuals are randomly distributed around the horizontal line (y=0).
+
+```{r}
+glejser <- lm(abs(residuals(m1)) ~ y.hat, data = dd)
+summary(glejser)
+```
+Homoscedasticity assumption is appropriate.
+
+```{r}
+n <- nrow(dd)
+lag_residuals <- c(NA, residuals(m1)[1:n-1])
+cor.test(residuals(m1), lag_residuals)
+```
+Independent Residuals assumption is appropriate.
+
+```{r}
+shapiro.test(residuals(m1))
+```
+residuals are normal distribution assumption is appropriate.
+
+### c. Provide point estimates and 95\% confidence intervals of the different species under both treated and control conditions.  
+
+```{r}
+library(emmeans)
+```
+
+```{r}
+emm <- emmeans(m1, ~ species * trt)
+confint(emm)
+```
+
